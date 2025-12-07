@@ -1,0 +1,5 @@
+{
+  "name": "Ver. 2 CupraHybrid Tracker",
+  "description": "A specialized dashboard for Plug-in Hybrid owners to track real consumption (Gas + kWh) and cost per 100km using a rolling average method.",
+  "requestFramePermissions": []
+}

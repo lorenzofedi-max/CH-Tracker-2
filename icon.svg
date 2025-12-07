@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2d333b" />
+      <stop offset="100%" stop-color="#0f1115" />
+    </linearGradient>
+    
+    <linearGradient id="copperGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff9f5e" />
+      <stop offset="100%" stop-color="#cf8e55" />
+    </linearGradient>
+    
+    <linearGradient id="electricGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22d3ee" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background (iOS Shape) -->
+  <rect x="0" y="0" width="512" height="512" rx="110" fill="url(#bgGrad)" />
+
+  <!-- Outer Copper Ring -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="url(#copperGrad)" stroke-width="6" opacity="0.4" />
+  <circle cx="256" cy="256" r="195" fill="none" stroke="url(#copperGrad)" stroke-width="2" opacity="0.2" />
+
+  <!-- MAIN LOGO GROUP -->
+  <g transform="translate(0, -20)">
+    
+    <!-- Center Battery Icon -->
+    <rect x="236" y="210" width="40" height="60" rx="4" fill="none" stroke="#555" stroke-width="3" />
+    <path d="M246 204 L266 204" stroke="#555" stroke-width="3" stroke-linecap="round" />
+    <rect x="242" y="220" width="28" height="40" rx="1" fill="#555" opacity="0.5" />
+    <!-- Battery Bolt -->
+    <path d="M256 230 L262 245 L250 245 L256 260" stroke="#0f1115" stroke-width="2" fill="none" />
+
+    <!-- LEFT WING (Electric / Blue) -->
+    <path d="M220 280 
+             L180 180 
+             L256 220 
+             L230 300 
+             Z" 
+          fill="none" stroke="url(#electricGrad)" stroke-width="8" stroke-linejoin="round" />
+    <path d="M180 180 L256 400 L220 280" fill="url(#electricGrad)" opacity="0.9" />
+
+    <!-- Circuit Lines Left -->
+    <g stroke="url(#electricGrad)" stroke-width="3" fill="none" stroke-linecap="round">
+       <path d="M180 200 L160 180 L160 160" /> <circle cx="160" cy="155" r="3" fill="#22d3ee" stroke="none"/>
+       <path d="M190 220 L150 220 L140 240" /> <circle cx="135" cy="245" r="3" fill="#22d3ee" stroke="none"/>
+       <path d="M200 250 L160 280" /> <circle cx="155" cy="285" r="3" fill="#22d3ee" stroke="none"/>
+    </g>
+    <!-- Lightning Bolt Left -->
+    <path d="M200 320 L180 350 L200 350 L190 380" fill="#22d3ee" stroke="none" />
+
+
+    <!-- RIGHT WING (Fuel / Copper) -->
+    <path d="M292 280 
+             L332 180 
+             L256 220 
+             L282 300 
+             Z" 
+          fill="none" stroke="url(#copperGrad)" stroke-width="8" stroke-linejoin="round" />
+    <path d="M332 180 L256 400 L292 280" fill="url(#copperGrad)" opacity="0.9" />
+
+    <!-- Circuit/Drop Lines Right -->
+    <g stroke="url(#copperGrad)" stroke-width="3" fill="none" stroke-linecap="round">
+       <path d="M332 200 L352 180 L352 160" /> <circle cx="352" cy="155" r="3" fill="#cf8e55" stroke="none"/>
+       <path d="M312 250 L352 280" /> <circle cx="357" cy="285" r="3" fill="#cf8e55" stroke="none"/>
+    </g>
+    
+    <!-- Fuel Pump Icon Right -->
+    <path d="M330 330 H350 V360 H330 Z" fill="none" stroke="#cf8e55" stroke-width="2" />
+    <path d="M350 340 H355 V355" stroke="#cf8e55" stroke-width="2" fill="none" />
+    
+    <!-- Drops -->
+    <path d="M320 160 Q325 170 320 175 Q315 170 320 160" fill="#cf8e55" />
+    <path d="M360 230 Q365 240 360 245 Q355 240 360 230" fill="#cf8e55" />
+
+  </g>
+
+  <!-- Typography -->
+  <text x="256" y="420" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="52" fill="white" letter-spacing="4">PHEV</text>
+  <text x="256" y="450" text-anchor="middle" font-family="sans-serif" font-weight="400" font-size="24" fill="#aaa" letter-spacing="1">Fuel & Power</text>
+
+</svg>
