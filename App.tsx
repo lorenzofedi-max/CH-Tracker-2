@@ -91,7 +91,16 @@ const App: React.FC = () => {
   const handleExport = () => {
     if (viewLogs.length === 0) return;
 
-    const data = viewLogs.map(log => ({
+    // Create a copy and sort chronologically (oldest first)
+    // Primary sort: Date Ascending
+    // Secondary sort: Odometer Ascending (to handle same-day entries correctly)
+    const sortedLogsForExport = [...viewLogs].sort((a, b) => {
+        const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return a.odometer - b.odometer;
+    });
+
+    const data = sortedLogsForExport.map(log => ({
       "Data": log.date.split('-').reverse().join('/'), 
       "Tipo": log.type === 'gas' ? 'Benzina' : 'Elettrico',
       "Odometro (km)": log.odometer,
@@ -130,8 +139,8 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-cupra-dark text-cupra-text font-sans pb-24 selection:bg-cupra-copper selection:text-white">
       
-      {/* Header */}
-      <header className="fixed top-0 w-full z-40 bg-cupra-dark/95 backdrop-blur-md border-b border-gray-800 transition-all duration-300">
+      {/* Header - MADE SOLID (Removed backdrop-blur and /95 opacity) */}
+      <header className="fixed top-0 w-full z-40 bg-cupra-dark border-b border-gray-800 transition-all duration-300">
         <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
           
           <div className="flex items-center gap-2">

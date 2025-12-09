@@ -171,7 +171,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
             </div>
             <div className="flex-1">
               <label className="block text-xs font-medium text-cupra-muted uppercase mb-1">
-                {type === 'gas' ? 'Costo Totale (€)' : 'Costo Unitario (€/kWh)'}
+                {type === 'gas' ? 'Costo Totale (€)' : 'Tariffa (€/kWh)'}
               </label>
               <input
                 type="number"
