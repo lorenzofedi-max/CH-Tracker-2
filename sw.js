@@ -1,6 +1,6 @@
 
 
-const CACHE_NAME = 'cupra-hybrid-tracker-v10';
+const CACHE_NAME = 'cupra-hybrid-tracker-v13';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',

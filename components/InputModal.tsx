@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { EntryType, LogEntry } from '../types';
 import { X, Save, Zap, Fuel } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -8,9 +8,10 @@ interface InputModalProps {
   onClose: () => void;
   onSave: (entry: LogEntry) => void;
   lastOdometer: number;
+  initialData?: LogEntry | null;
 }
 
-const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOdometer }) => {
+const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOdometer, initialData }) => {
   const [type, setType] = useState<EntryType>('gas');
   const [odometer, setOdometer] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
@@ -19,6 +20,32 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
   const [costInput, setCostInput] = useState<string>(''); 
   
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
+
+  // Load initial data when editing
+  useEffect(() => {
+    if (isOpen && initialData) {
+      setType(initialData.type);
+      setDate(initialData.date);
+      setOdometer(initialData.odometer.toString());
+      setAmount(initialData.amount.toString());
+      
+      if (initialData.type === 'gas') {
+        // For gas, we store Cost, user inputs Cost
+        setCostInput(initialData.cost.toString());
+      } else {
+        // For electric, we store Cost, but user inputs Price Per Unit.
+        // We have PricePerUnit in the object, use that directly.
+        setCostInput(initialData.pricePerUnit.toString());
+      }
+    } else if (isOpen && !initialData) {
+      // Reset defaults for new entry
+      setType('gas');
+      setOdometer('');
+      setAmount('');
+      setCostInput('');
+      setDate(new Date().toISOString().split('T')[0]);
+    }
+  }, [isOpen, initialData]);
 
   if (!isOpen) return null;
 
@@ -44,7 +71,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
     }
 
     const newEntry: LogEntry = {
-      id: uuidv4(),
+      id: initialData ? initialData.id : uuidv4(), // Preserve ID if editing
       date,
       type,
       odometer: numOdometer,
@@ -64,8 +91,10 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
 
   const handleTypeChange = (newType: EntryType) => {
     setType(newType);
-    setAmount('');
-    setCostInput(''); // Clear cost input when switching context because scale is very different
+    if (!initialData) {
+        setAmount('');
+        setCostInput(''); 
+    }
   };
 
   // Helper to calculate display values preview
@@ -97,7 +126,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
         <div className="flex justify-between items-center p-4 border-b border-gray-800">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             {type === 'gas' ? <Fuel className="text-cupra-petrol" /> : <Zap className="text-cupra-electric" />}
-            Nuovo {type === 'gas' ? 'Rifornimento' : 'Ricarica'}
+            {initialData ? 'Modifica' : 'Nuovo'} {type === 'gas' ? 'Rifornimento' : 'Ricarica'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <X size={24} />
@@ -107,6 +136,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
         {/* Type Switcher */}
         <div className="flex p-2 gap-2 bg-gray-900/50">
           <button
+            type="button"
             onClick={() => handleTypeChange('gas')}
             className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 transition-all font-medium ${
               type === 'gas' ? 'bg-cupra-petrol text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'
@@ -115,6 +145,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
             <Fuel size={18} /> Benzina
           </button>
           <button
+            type="button"
             onClick={() => handleTypeChange('electric')}
             className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 transition-all font-medium ${
               type === 'electric' ? 'bg-cupra-electric text-white shadow-lg' : 'text-gray-400 hover:bg-gray-800'
@@ -140,7 +171,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
 
           <div>
             <label className="block text-xs font-medium text-cupra-muted uppercase mb-1">
-              Km Totali (Odo) {lastOdometer > 0 && <span className='normal-case text-gray-500'>Ultimo: {lastOdometer}</span>}
+              Km Totali (Odo) {lastOdometer > 0 && !initialData && <span className='normal-case text-gray-500'>Ultimo: {lastOdometer}</span>}
             </label>
             <input
               type="number"
@@ -198,7 +229,7 @@ const InputModal: React.FC<InputModalProps> = ({ isOpen, onClose, onSave, lastOd
                type === 'gas' ? 'bg-gradient-to-r from-emerald-600 to-emerald-500' : 'bg-gradient-to-r from-blue-600 to-blue-500'
             } text-white shadow-lg`}
           >
-            <Save size={20} /> Salva Dati
+            <Save size={20} /> {initialData ? 'Aggiorna Dati' : 'Salva Dati'}
           </button>
 
         </form>

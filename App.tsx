@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Zap, Fuel, Plus, TrendingUp, History, Euro, Gauge, Calendar, Download, Filter } from 'lucide-react';
-import { getLogs, addLog, deleteLog, calculateStats, calculateMonthlyStats } from './services/storageService';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Zap, Fuel, Plus, TrendingUp, History, Euro, Gauge, Calendar, Download, Filter, Pencil, Trash2, Check, X } from 'lucide-react';
+import { getLogs, addLog, deleteLog, updateLog, calculateStats, calculateMonthlyStats } from './services/storageService';
 import { LogEntry, Stats, MonthlyStats } from './types';
 import StatCard from './components/StatCard';
 import InputModal from './components/InputModal';
@@ -11,16 +11,49 @@ import * as XLSX from 'xlsx';
 const App: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [filterMonth, setFilterMonth] = useState<string>('all');
+  const [editingLog, setEditingLog] = useState<LogEntry | null>(null);
+  
+  // FILTER STATE
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]); // Empty array = ALL
+
+  const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadedLogs = getLogs();
     setLogs(loadedLogs);
   }, []);
 
+  // Close filter when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const handleSaveEntry = (entry: LogEntry) => {
-    const updated = addLog(entry);
-    setLogs(updated);
+    if (editingLog) {
+      const updated = updateLog(entry);
+      setLogs(updated);
+      setEditingLog(null);
+    } else {
+      const updated = addLog(entry);
+      setLogs(updated);
+    }
+  };
+
+  const handleEdit = (log: LogEntry) => {
+    setEditingLog(log);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingLog(null); // Reset editing state when closed without saving
   };
 
   const handleDelete = (id: string) => {
@@ -28,6 +61,21 @@ const App: React.FC = () => {
       const updated = deleteLog(id);
       setLogs(updated);
     }
+  };
+
+  const toggleMonth = (monthKey: string) => {
+    setSelectedMonths(prev => {
+      if (prev.includes(monthKey)) {
+        return prev.filter(m => m !== monthKey);
+      } else {
+        return [...prev, monthKey];
+      }
+    });
+  };
+
+  const resetFilter = () => {
+    setSelectedMonths([]);
+    setIsFilterOpen(false);
   };
 
   // --- CALCULATION LOGIC ---
@@ -42,8 +90,8 @@ const App: React.FC = () => {
     // A. Always calculate full monthly stats first (to get accurate distances per month)
     const allMonthlyStats = calculateMonthlyStats(logs);
     
-    // B. Default: ALL DATA
-    if (filterMonth === 'all') {
+    // B. Default: ALL DATA (If selectedMonths is empty)
+    if (selectedMonths.length === 0) {
       return {
         viewStats: calculateStats(logs),
         viewMonthlyStats: allMonthlyStats,
@@ -51,49 +99,52 @@ const App: React.FC = () => {
       };
     } 
 
-    // C. Filtered: SPECIFIC MONTH
-    // Filter logs for lists and cost sums
-    const filteredLogs = logs.filter(log => log.date.startsWith(filterMonth));
+    // C. Filtered: MULTIPLE MONTHS
+    // 1. Get the MonthlyStats objects for the selected months
+    const filteredMonthlyStats = allMonthlyStats.filter(m => selectedMonths.includes(m.monthKey));
     
-    // Find the pre-calculated stat for this month (for accurate distance)
-    const monthStat = allMonthlyStats.find(m => m.monthKey === filterMonth);
+    // 2. Filter raw logs just for the list view and export
+    const filteredLogs = logs.filter(log => selectedMonths.includes(log.date.substring(0, 7)));
 
-    if (!monthStat || filteredLogs.length === 0) {
-      return { viewStats: null, viewMonthlyStats: [], viewLogs: [] };
+    if (filteredMonthlyStats.length === 0) {
+       return { viewStats: null, viewMonthlyStats: [], viewLogs: [] };
     }
 
-    // Recalculate distinct sums for this month
-    const totalCost = filteredLogs.reduce((acc, l) => acc + l.cost, 0);
-    const electricCost = filteredLogs.filter(l => l.type === 'electric').reduce((acc, l) => acc + l.cost, 0);
-    
-    // Construct a Stats object specifically for this month
-    const specificStats: Stats = {
-      totalDistance: monthStat.totalDistance,
-      totalCost: totalCost,
-      totalGasVolume: monthStat.gasVolume,
-      totalElecVolume: monthStat.elecVolume,
-      costPer100Km: monthStat.costPer100Km,
-      costPerKm: monthStat.totalDistance > 0 ? totalCost / monthStat.totalDistance : 0,
-      gasConsumption: monthStat.totalDistance > 0 ? (monthStat.gasVolume / monthStat.totalDistance) * 100 : 0,
-      elecConsumption: monthStat.totalDistance > 0 ? (monthStat.elecVolume / monthStat.totalDistance) * 100 : 0,
-      percentageElectricCost: totalCost > 0 ? (electricCost / totalCost) * 100 : 0
+    // 3. Aggregate stats from the monthly buckets
+    // We sum the monthly distances/costs instead of raw logs to preserve the correct distance calculations per month
+    const totalDistance = filteredMonthlyStats.reduce((sum, m) => sum + m.totalDistance, 0);
+    const totalCost = filteredMonthlyStats.reduce((sum, m) => sum + m.totalCost, 0);
+    const totalGasVolume = filteredMonthlyStats.reduce((sum, m) => sum + m.gasVolume, 0);
+    const totalElecVolume = filteredMonthlyStats.reduce((sum, m) => sum + m.elecVolume, 0);
+
+    // Calculate the portion of cost that is electric from the raw logs of these months
+    const rawElecCost = filteredLogs.filter(l => l.type === 'electric').reduce((acc, l) => acc + l.cost, 0);
+
+    const aggregatedStats: Stats = {
+      totalDistance,
+      totalCost,
+      totalGasVolume,
+      totalElecVolume,
+      costPer100Km: totalDistance > 0 ? (totalCost / totalDistance) * 100 : 0,
+      costPerKm: totalDistance > 0 ? totalCost / totalDistance : 0,
+      gasConsumption: totalDistance > 0 ? (totalGasVolume / totalDistance) * 100 : 0,
+      elecConsumption: totalDistance > 0 ? (totalElecVolume / totalDistance) * 100 : 0,
+      percentageElectricCost: totalCost > 0 ? (rawElecCost / totalCost) * 100 : 0
     };
 
     return {
-      viewStats: specificStats,
-      viewMonthlyStats: [monthStat], // Only show this month in charts/list
+      viewStats: aggregatedStats,
+      viewMonthlyStats: filteredMonthlyStats, // Show chart only for selected months
       viewLogs: filteredLogs
     };
 
-  }, [logs, filterMonth]);
+  }, [logs, selectedMonths]);
 
 
   const handleExport = () => {
     if (viewLogs.length === 0) return;
 
     // Create a copy and sort chronologically (oldest first)
-    // Primary sort: Date Ascending
-    // Secondary sort: Odometer Ascending (to handle same-day entries correctly)
     const sortedLogsForExport = [...viewLogs].sort((a, b) => {
         const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
         if (dateDiff !== 0) return dateDiff;
@@ -117,13 +168,15 @@ const App: React.FC = () => {
     const workbook = XLSX.utils.book_new();
     
     let fileName = `Cupra_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
-    let sheetName = "Report Completo";
+    let sheetName = "Report";
     
-    if (filterMonth !== 'all') {
-       const dateObj = new Date(filterMonth + "-01");
+    if (selectedMonths.length === 1) {
+       const dateObj = new Date(selectedMonths[0] + "-01");
        const monthName = dateObj.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
        fileName = `Cupra_Report_${monthName.replace(' ', '_')}.xlsx`;
        sheetName = monthName.substring(0, 31);
+    } else if (selectedMonths.length > 0) {
+        fileName = `Cupra_Report_Multi_${new Date().toISOString().split('T')[0]}.xlsx`;
     }
 
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
@@ -139,7 +192,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-cupra-dark text-cupra-text font-sans pb-24 selection:bg-cupra-copper selection:text-white">
       
-      {/* Header - MADE SOLID (Removed backdrop-blur and /95 opacity) */}
+      {/* Header - Solid */}
       <header className="fixed top-0 w-full z-40 bg-cupra-dark border-b border-gray-800 transition-all duration-300">
         <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
           
@@ -155,20 +208,73 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="relative group">
-            <select
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
-              className="appearance-none bg-gray-900 border border-gray-700 text-xs font-bold text-cupra-copper rounded-full pl-4 pr-8 py-2 focus:border-cupra-copper outline-none cursor-pointer hover:bg-gray-800 transition-colors shadow-sm"
+          {/* CUSTOM MULTI-SELECT DROPDOWN */}
+          <div className="relative" ref={filterRef}>
+            <button 
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`flex items-center gap-2 text-xs font-bold rounded-full pl-4 pr-3 py-2 border transition-all ${
+                    isFilterOpen || selectedMonths.length > 0
+                    ? 'bg-gray-800 border-cupra-copper text-cupra-copper' 
+                    : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500'
+                }`}
             >
-              <option value="all">Tutto lo storico</option>
-              {availableMonths.map(month => (
-                <option key={month} value={month}>
-                  {new Date(month + '-01').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
-                </option>
-              ))}
-            </select>
-            <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none group-hover:text-cupra-copper transition-colors" />
+              <span>
+                {selectedMonths.length === 0 
+                    ? 'Tutto lo storico' 
+                    : selectedMonths.length === 1 
+                        ? new Date(selectedMonths[0] + '-01').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })
+                        : `${selectedMonths.length} Mesi Selez.`}
+              </span>
+              <Filter size={14} className={selectedMonths.length > 0 ? "fill-current" : ""} />
+            </button>
+
+            {/* Dropdown Menu */}
+            {isFilterOpen && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-cupra-card border border-gray-700 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+                    <div className="p-2 border-b border-gray-800 flex justify-between items-center bg-gray-900/50">
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-2">Filtra Periodo</span>
+                        {selectedMonths.length > 0 && (
+                            <button onClick={resetFilter} className="text-[10px] text-cupra-copper hover:text-white underline">
+                                Resetta
+                            </button>
+                        )}
+                    </div>
+                    <div className="max-h-64 overflow-y-auto p-1 custom-scrollbar">
+                        <button 
+                            onClick={() => setSelectedMonths([])}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between mb-1 ${
+                                selectedMonths.length === 0 ? 'bg-cupra-copper/20 text-cupra-copper font-bold' : 'text-gray-300 hover:bg-gray-800'
+                            }`}
+                        >
+                            <span>Tutto lo storico</span>
+                            {selectedMonths.length === 0 && <Check size={14} />}
+                        </button>
+                        
+                        <div className="h-px bg-gray-800 my-1 mx-2"></div>
+
+                        {availableMonths.map(month => {
+                            const isSelected = selectedMonths.includes(month);
+                            const label = new Date(month + '-01').toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+                            return (
+                                <button
+                                    key={month}
+                                    onClick={() => toggleMonth(month)}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between mb-1 transition-colors ${
+                                        isSelected ? 'bg-gray-800 text-white font-medium' : 'text-gray-400 hover:bg-gray-800/50'
+                                    }`}
+                                >
+                                    <span className="capitalize">{label}</span>
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                                        isSelected ? 'bg-cupra-copper border-cupra-copper' : 'border-gray-600'
+                                    }`}>
+                                        {isSelected && <Check size={10} className="text-black" />}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
           </div>
 
         </div>
@@ -183,7 +289,7 @@ const App: React.FC = () => {
           
           <div className="relative z-10 flex flex-col items-center justify-center py-2">
             <span className="text-cupra-muted text-[10px] font-semibold uppercase tracking-widest mb-1">
-              {filterMonth === 'all' ? 'Costo Effettivo Globale' : 'Costo Effettivo Mese'}
+              {selectedMonths.length === 0 ? 'Costo Effettivo Globale' : 'Costo Effettivo Periodo'}
             </span>
             <div className="flex items-baseline gap-1 animate-fade-in">
               <span className="text-4xl font-black text-white tracking-tighter">
@@ -268,7 +374,7 @@ const App: React.FC = () => {
           <StatCard 
             label="Spesa Periodo" 
             value={viewStats ? `€${Math.floor(viewStats.totalCost)}` : '€0'} 
-            subValue={filterMonth === 'all' ? "Totale Storico" : "Totale Mese"}
+            subValue={selectedMonths.length === 0 ? "Totale Storico" : "Totale Selezionato"}
             icon={Euro}
             colorClass="text-purple-400"
           />
@@ -284,8 +390,8 @@ const App: React.FC = () => {
         {/* Charts */}
         <Charts monthlyStats={viewMonthlyStats} />
 
-        {/* Monthly Breakdown List */}
-        {filterMonth === 'all' && viewMonthlyStats.length > 0 && (
+        {/* Monthly Breakdown List (Only visible if showing 'All' or multiple months selected) */}
+        {viewMonthlyStats.length > 0 && (
           <div className="mb-6">
              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                 <Calendar className="text-cupra-copper" size={20} /> Report Mensile
@@ -298,7 +404,7 @@ const App: React.FC = () => {
                       <p className="text-xs text-gray-500">{m.totalDistance} km percorsi</p>
                     </div>
                     <div className="text-right">
-                       <p className="font-bold text-white">€{m.totalCost.toFixed(0)}</p>
+                       <p className="font-bold text-white">€{m.totalCost.toFixed(2)}</p>
                        <p className="text-xs text-cupra-copper">€{m.costPer100Km.toFixed(2)} /100km</p>
                     </div>
                  </div>
@@ -313,7 +419,7 @@ const App: React.FC = () => {
           <div className="flex justify-between items-center gap-4 mb-6">
              <h3 className="text-lg font-bold text-white flex items-center gap-2">
                <History className="text-gray-500" size={20} /> 
-               {filterMonth === 'all' ? 'Storico Completo' : 'Dettaglio Mese'}
+               {selectedMonths.length === 0 ? 'Storico Completo' : 'Dettaglio Periodo'}
              </h3>
              
              {viewLogs.length > 0 && (
@@ -346,9 +452,16 @@ const App: React.FC = () => {
                   </div>
                   <div className="flex flex-col items-end">
                     <p className="font-mono text-sm text-gray-300">€{log.cost.toFixed(2)}</p>
-                    <button onClick={() => handleDelete(log.id)} className="text-red-900 hover:text-red-500 text-xs mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        Elimina
-                    </button>
+                    
+                    <div className='flex items-center gap-3 mt-1 opacity-0 group-hover:opacity-100 transition-opacity'>
+                        <button onClick={() => handleEdit(log)} className="text-amber-500 hover:text-amber-400">
+                             <Pencil size={14} />
+                        </button>
+                        <button onClick={() => handleDelete(log.id)} className="text-red-900 hover:text-red-500">
+                             <Trash2 size={14} />
+                        </button>
+                    </div>
+
                   </div>
                 </div>
               ))}
@@ -360,7 +473,10 @@ const App: React.FC = () => {
       {/* Floating Action Button */}
       <div className="fixed bottom-6 right-6 z-50">
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setEditingLog(null); // Ensure we are adding new, not editing
+            setIsModalOpen(true);
+          }}
           className="w-14 h-14 bg-cupra-copper hover:bg-cupra-copperHover text-white rounded-full shadow-2xl shadow-orange-900/50 flex items-center justify-center transition-transform active:scale-90"
         >
           <Plus size={28} />
@@ -369,9 +485,10 @@ const App: React.FC = () => {
 
       <InputModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+        onClose={handleCloseModal} 
         onSave={handleSaveEntry}
         lastOdometer={lastOdometer}
+        initialData={editingLog}
       />
     </div>
   );

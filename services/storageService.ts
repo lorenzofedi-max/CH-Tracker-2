@@ -27,6 +27,20 @@ export const addLog = (entry: LogEntry): LogEntry[] => {
   return updated;
 };
 
+export const updateLog = (updatedEntry: LogEntry): LogEntry[] => {
+  const current = getLogs();
+  const index = current.findIndex(log => log.id === updatedEntry.id);
+  
+  if (index !== -1) {
+    current[index] = updatedEntry;
+    // Re-sort because date or odometer might have changed
+    const sorted = current.sort((a, b) => b.odometer - a.odometer);
+    saveLogs(sorted);
+    return sorted;
+  }
+  return current;
+};
+
 export const deleteLog = (id: string): LogEntry[] => {
   const current = getLogs();
   const updated = current.filter(log => log.id !== id);
